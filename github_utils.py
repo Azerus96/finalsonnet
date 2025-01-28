@@ -27,7 +27,7 @@ class GitHubSync:
     def __init__(self):
         self.token = os.environ.get("AI_PROGRESS_TOKEN")
         self.username = os.environ.get("GITHUB_USERNAME", "Azerus96")
-        self.repository = os.environ.get("GITHUB_REPOSITORY", "finalofc")
+        self.repository = os.environ.get("GITHUB_REPOSITORY", "finalsonnet")
         self.branch = "main"
         self._github: Optional[Github] = None
         self._repo: Optional[Repository] = None
