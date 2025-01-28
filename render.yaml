@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: chinese-poker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+    preDeployCommand: python run_tests.py
