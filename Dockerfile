@@ -4,6 +4,7 @@ FROM python:3.9-slim
 RUN apt-get update && apt-get install -y \
     gcc \
     python3-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка рабочей директории
@@ -18,30 +19,33 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копирование всего проекта
 COPY . .
 
-# Делаем скрипт для тестов исполняемым
-RUN chmod +x run_tests.py
-
 # Создаем директории для данных и логов
-RUN mkdir -p data logs
+RUN mkdir -p data logs flask_session
 
-# Установка переменных окружения по умолчанию
+# Установка правильных прав доступа
+RUN chmod -R 755 /app && \
+    chmod +x run_tests.py && \
+    chown -R nobody:nogroup /app/data /app/logs /app/flask_session
+
+# Установка переменных окружения
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
+ENV PYTHONPATH=/app
+ENV PORT=8000
 
-# Проверка работоспособности приложения
+# Проверка работоспособности
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/ || exit 1
 
-# Запуск тестов при сборке (опционально)
-# RUN python run_tests.py
-
 # Команда запуска
 CMD gunicorn --bind 0.0.0.0:${PORT:-8000} \
-    --workers=4 \
+    --workers=1 \
     --threads=2 \
     --timeout=120 \
-    --access-logfile=logs/access.log \
-    --error-logfile=logs/error.log \
-    --log-level=info \
-    app:app
+    --access-logfile=/app/logs/access.log \
+    --error-logfile=/app/logs/error.log \
+    --log-level=debug \
+    --capture-output \
+    --enable-stdio-inheritance \
+    wsgi:app
