@@ -2,17 +2,15 @@ services:
   - type: web
     name: chinese-poker
     env: python
+    region: frankfurt  # или другой ближайший регион
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --log-level debug --capture-output
+    startCommand: gunicorn --workers 1 --threads 1 --timeout 120 --access-logfile - --error-logfile - --log-level debug wsgi:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.9
       - key: FLASK_ENV
         value: production
-      - key: PYTHONPATH
-        value: .
       - key: SECRET_KEY
         generateValue: true
-      - key: PORT
-        value: 8000
     healthCheckPath: /
+    autoDeploy: true
