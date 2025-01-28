@@ -145,7 +145,7 @@ class GameManager:
         except Exception as e:
             logger.error(f"Error checking foul: {e}")
             return False
-    def _calculate_royalties(self, state: Dict[str, Any]) -> int:
+            def _calculate_royalties(self, state: Dict[str, Any]) -> int:
         """Подсчитывает роялти."""
         try:
             game_state = self._convert_to_game_state(state)
@@ -285,4 +285,4 @@ def get_statistics():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
-    app.run(host='0.0.0.0', port=port, debug=debug)        
+    app.run(host='0.0.0.0', port=port, debug=debug)
