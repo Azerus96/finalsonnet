@@ -45,6 +45,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
 
 # Глобальный экземпляр AI агента
 cfr_agent = None
+
 class GameManager:
     def __init__(self):
         self.active_games: Dict[str, Dict[str, Any]] = {}
@@ -117,16 +118,18 @@ class GameManager:
             stats['royalties'] += royalties
         except Exception as e:
             logger.error(f"Error updating statistics: {e}")
+
     def _check_fantasy(self, state: Dict[str, Any]) -> bool:
         """Проверяет возможность фантазии."""
-        top_cards = state['board']['top']
-        if len(top_cards) >= 2:
-            ranks = [card['rank'] for card in top_cards]
-            high_pairs = ['Q', 'K', 'A']
-            for rank in high_pairs:
-                if ranks.count(rank) >= 2:
-                    return True
-        return False
+        try:
+            top_cards = state['board']['top']
+            if len(top_cards) >= 2:
+                ranks = [card['rank'] for card in top_cards]
+                high_pairs = ['Q', 'K', 'A']
+                for rank in high_pairs:
+                    if ranks.count(rank) >= 2:
+                        return True
+            return False
         except Exception as e:
             logger.error(f"Error checking fantasy: {e}")
             return False
@@ -142,8 +145,7 @@ class GameManager:
         except Exception as e:
             logger.error(f"Error checking foul: {e}")
             return False
-
-    def _calculate_royalties(self, state: Dict[str, Any]) -> int:
+            def _calculate_royalties(self, state: Dict[str, Any]) -> int:
         """Подсчитывает роялти."""
         try:
             game_state = self._convert_to_game_state(state)
@@ -178,18 +180,25 @@ class GameManager:
 
     def get_game_statistics(self, session_id: str) -> Dict[str, Any]:
         """Возвращает статистику игры."""
-        if session_id in self.active_games:
-            return self.active_games[session_id]['statistics']
-        return {}
+        try:
+            if session_id in self.active_games:
+                return self.active_games[session_id]['statistics']
+            return {}
+        except Exception as e:
+            logger.error(f"Error getting game statistics: {e}")
+            return {}
 
     def end_game(self, session_id: str) -> None:
         """Завершает игру и сохраняет статистику."""
-        if session_id in self.active_games:
-            game_data = self.active_games[session_id]
-            game_data['end_time'] = datetime.now()
-            self.game_statistics[session_id] = game_data
-            del self.active_games[session_id]
-            logger.info(f"Game ended for session {session_id}")
+        try:
+            if session_id in self.active_games:
+                game_data = self.active_games[session_id]
+                game_data['end_time'] = datetime.now()
+                self.game_statistics[session_id] = game_data
+                del self.active_games[session_id]
+                logger.info(f"Game ended for session {session_id}")
+        except Exception as e:
+            logger.error(f"Error ending game: {e}")
 
 # Создаем экземпляр GameManager
 game_manager = GameManager()
@@ -219,7 +228,8 @@ def initialize_ai_agent(ai_settings: Dict[str, Any]) -> None:
         logger.error(f"Error initializing AI agent: {e}")
         logger.info("Falling back to default AI agent settings")
         cfr_agent = ai_engine.CFRAgent()
-        def validate_game_state(state: Dict[str, Any]) -> bool:
+
+def validate_game_state(state: Dict[str, Any]) -> bool:
     """Проверяет корректность состояния игры."""
     try:
         # Проверка структуры состояния
@@ -309,7 +319,8 @@ def training():
     except Exception as e:
         logger.error(f"Error in training route: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-        @app.route('/update_state', methods=['POST'])
+
+@app.route('/update_state', methods=['POST'])
 def update_state():
     """Обновляет состояние игры."""
     try:
@@ -353,8 +364,9 @@ def ai_move():
         if not validate_game_state(game_state_data):
             logger.warning("Invalid game state received for AI move")
             return jsonify({'error': 'Invalid game state format'}), 400
-            # Конвертируем данные в объекты Card
+
         try:
+            # Конвертируем данные в объекты Card
             selected_cards = [ai_engine.Card(card['rank'], card['suit']) 
                             for card in game_state_data['selected_cards']]
             
@@ -373,7 +385,6 @@ def ai_move():
                 discarded_cards=discarded_cards,
                 ai_settings=game_state_data['ai_settings']
             )
-
             # Получаем ход AI
             timeout_event = Event()
             result = {'move': None}
@@ -400,6 +411,7 @@ def ai_move():
                 return jsonify({'error': 'AI failed to produce a move'}), 500
 
             move = result['move']
+
             # Сериализуем ход AI
             def serialize_card(card):
                 return card.to_dict() if card is not None else None
@@ -441,7 +453,8 @@ def get_statistics():
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-        @app.route('/end_game', methods=['POST'])
+
+@app.route('/end_game', methods=['POST'])
 def end_game():
     """Завершает текущую игру."""
     try:
@@ -474,4 +487,4 @@ if __name__ == '__main__':
     
     # Получаем порт из переменных окружения или используем порт по умолчанию
     port = int(os.environ.get("PORT", 8000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
