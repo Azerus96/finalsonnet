@@ -3,9 +3,16 @@ services:
     name: chinese-poker
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
-    healthCheckPath: /
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --log-level debug --capture-output
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.0
-    preDeployCommand: python run_tests.py
+        value: 3.9
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONPATH
+        value: .
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 8000
+    healthCheckPath: /
