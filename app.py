@@ -117,17 +117,16 @@ class GameManager:
             stats['royalties'] += royalties
         except Exception as e:
             logger.error(f"Error updating statistics: {e}")
-            def _check_fantasy(self, state: Dict[str, Any]) -> bool:
+    def _check_fantasy(self, state: Dict[str, Any]) -> bool:
         """Проверяет возможность фантазии."""
-        try:
-            top_cards = state['board']['top']
-            if len(top_cards) >= 2:
-                ranks = [card['rank'] for card in top_cards]
-                high_pairs = ['Q', 'K', 'A']
-                for rank in high_pairs:
-                    if ranks.count(rank) >= 2:
-                        return True
-            return False
+        top_cards = state['board']['top']
+        if len(top_cards) >= 2:
+            ranks = [card['rank'] for card in top_cards]
+            high_pairs = ['Q', 'K', 'A']
+            for rank in high_pairs:
+                if ranks.count(rank) >= 2:
+                    return True
+        return False
         except Exception as e:
             logger.error(f"Error checking fantasy: {e}")
             return False
