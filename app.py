@@ -145,7 +145,7 @@ class GameManager:
         except Exception as e:
             logger.error(f"Error checking foul: {e}")
             return False
-            def _calculate_royalties(self, state: Dict[str, Any]) -> int:
+    def _calculate_royalties(self, state: Dict[str, Any]) -> int:
         """Подсчитывает роялти."""
         try:
             game_state = self._convert_to_game_state(state)
@@ -203,88 +203,6 @@ class GameManager:
 # Создаем экземпляр GameManager
 game_manager = GameManager()
 
-def initialize_ai_agent(ai_settings: Dict[str, Any]) -> None:
-    """Инициализация AI агента с обработкой ошибок"""
-    global cfr_agent
-    try:
-        iterations = int(ai_settings.get('iterations', 1000))
-        stop_threshold = float(ai_settings.get('stopThreshold', 0.001))
-        cfr_agent = ai_engine.CFRAgent(
-            iterations=iterations,
-            stop_threshold=stop_threshold
-        )
-        logger.info("AI agent initialized successfully")
-
-        if os.environ.get("AI_PROGRESS_TOKEN"):
-            try:
-                cfr_agent.load_progress()
-                logger.info("AI progress loaded successfully")
-            except Exception as e:
-                logger.error(f"Error loading AI progress: {e}")
-        else:
-            logger.warning("AI_PROGRESS_TOKEN not set. Progress loading disabled.")
-            
-    except Exception as e:
-        logger.error(f"Error initializing AI agent: {e}")
-        logger.info("Falling back to default AI agent settings")
-        cfr_agent = ai_engine.CFRAgent()
-
-def validate_game_state(state: Dict[str, Any]) -> bool:
-    """Проверяет корректность состояния игры."""
-    try:
-        # Проверка структуры состояния
-        required_keys = {'selected_cards', 'board', 'discarded_cards', 'ai_settings'}
-        if not all(key in state for key in required_keys):
-            logger.error("Missing required keys in game state")
-            return False
-
-        # Проверка структуры доски
-        if not all(line in state['board'] for line in ['top', 'middle', 'bottom']):
-            logger.error("Invalid board structure")
-            return False
-
-        # Проверка корректности карт
-        for cards in [state['selected_cards'], state['discarded_cards']]:
-            for card in cards:
-                if not {'rank', 'suit'}.issubset(card.keys()):
-                    logger.error(f"Invalid card structure: {card}")
-                    return False
-                if card['rank'] not in ai_engine.Card.RANKS:
-                    logger.error(f"Invalid card rank: {card['rank']}")
-                    return False
-                if card['suit'] not in ai_engine.Card.SUITS:
-                    logger.error(f"Invalid card suit: {card['suit']}")
-                    return False
-
-        # Проверка количества карт
-        if len(state['board']['top']) > 3:
-            logger.error("Too many cards in top row")
-            return False
-        if len(state['board']['middle']) > 5:
-            logger.error("Too many cards in middle row")
-            return False
-        if len(state['board']['bottom']) > 5:
-            logger.error("Too many cards in bottom row")
-            return False
-
-        return True
-    except Exception as e:
-        logger.error(f"Error validating game state: {e}")
-        return False
-
-# Обработка ошибок
-@app.errorhandler(Exception)
-def handle_error(e):
-    logger.error(f"Unhandled error: {str(e)}")
-    return jsonify({"error": "Internal server error"}), 500
-    # Настройка сессии
-@app.before_request
-def before_request():
-    """Настройка сессии перед каждым запросом"""
-    if not session.get('session_id'):
-        session['session_id'] = os.urandom(16).hex()
-        logger.info(f"Created new session: {session['session_id']}")
-
 @app.route('/')
 def home():
     """Главная страница."""
@@ -298,193 +216,73 @@ def home():
         logger.error(f"Error in home route: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/training')
-def training():
-    """Страница тренировки."""
+@app.route('/api/game/state', methods=['GET'])
+def get_game_state():
+    """Получает текущее состояние игры."""
+    try:
+        session_id = session.get('session_id')
+        if not session_id or session_id not in game_manager.active_games:
+            return jsonify({'error': 'Invalid session'}), 400
+        
+        return jsonify(game_manager.active_games[session_id]['state'])
+    except Exception as e:
+        logger.error(f"Error getting game state: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/game/move', methods=['POST'])
+def make_move():
+    """Обрабатывает ход игрока."""
     try:
         session_id = session.get('session_id')
         if not session_id:
-            session['session_id'] = os.urandom(16).hex()
-            game_manager.create_game(session['session_id'])
+            return jsonify({'error': 'Invalid session'}), 400
+
+        move_data = request.get_json()
+        if not move_data:
+            return jsonify({'error': 'Invalid move data'}), 400
+
+        if not validate_game_state(move_data):
+            return jsonify({'error': 'Invalid game state'}), 400
+
+        game_manager.update_game_state(session_id, move_data)
         
-        if 'game_state' not in session:
-            session['game_state'] = game_manager.active_games[session['session_id']]['state']
-
-        # Инициализация AI агента при необходимости
-        if cfr_agent is None or session['game_state']['ai_settings'] != session.get('previous_ai_settings'):
-            initialize_ai_agent(session['game_state']['ai_settings'])
-            session['previous_ai_settings'] = session['game_state']['ai_settings'].copy()
-
-        return render_template('training.html', game_state=session['game_state'])
+        return jsonify({
+            'status': 'success',
+            'statistics': game_manager.get_game_statistics(session_id)
+        })
     except Exception as e:
-        logger.error(f"Error in training route: {e}")
+        logger.error(f"Error processing move: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/update_state', methods=['POST'])
-def update_state():
-    """Обновляет состояние игры."""
+@app.route('/api/game/end', methods=['POST'])
+def end_game():
+    """Завершает текущую игру."""
     try:
-        if not request.is_json:
-            logger.warning("Received non-JSON request")
-            return jsonify({'error': 'Content type must be application/json'}), 400
+        session_id = session.get('session_id')
+        if not session_id:
+            return jsonify({'error': 'Invalid session'}), 400
 
-        game_state = request.get_json()
-        
-        if not validate_game_state(game_state):
-            logger.warning("Invalid game state received")
-            return jsonify({'error': 'Invalid game state format'}), 400
-
-        session['game_state'] = game_state
-        session.modified = True
-
-        # Обновляем состояние в GameManager
-        game_manager.update_game_state(session['session_id'], game_state)
-
-        # Обновляем настройки AI при необходимости
-        if game_state['ai_settings'] != session.get('previous_ai_settings'):
-            initialize_ai_agent(game_state['ai_settings'])
-            session['previous_ai_settings'] = game_state['ai_settings'].copy()
-
+        game_manager.end_game(session_id)
         return jsonify({'status': 'success'})
     except Exception as e:
-        logger.error(f"Error in update_state: {e}")
+        logger.error(f"Error ending game: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/ai_move', methods=['POST'])
-def ai_move():
-    """Обрабатывает ход AI."""
-    try:
-        if cfr_agent is None:
-            logger.error("AI agent not initialized")
-            return jsonify({'error': 'AI agent not initialized'}), 500
-
-        game_state_data = request.get_json()
-        logger.debug(f"Received game state data for AI move")
-
-        if not validate_game_state(game_state_data):
-            logger.warning("Invalid game state received for AI move")
-            return jsonify({'error': 'Invalid game state format'}), 400
-
-        try:
-            # Конвертируем данные в объекты Card
-            selected_cards = [ai_engine.Card(card['rank'], card['suit']) 
-                            for card in game_state_data['selected_cards']]
-            
-            board = ai_engine.Board()
-            for line in ['top', 'middle', 'bottom']:
-                for card_data in game_state_data['board'].get(line, []):
-                    board.place_card(line, ai_engine.Card(card_data['rank'], card_data['suit']))
-            
-            discarded_cards = [ai_engine.Card(card['rank'], card['suit']) 
-                             for card in game_state_data.get('discarded_cards', [])]
-            
-            # Создаем состояние игры
-            game_state = ai_engine.GameState(
-                selected_cards=selected_cards,
-                board=board,
-                discarded_cards=discarded_cards,
-                ai_settings=game_state_data['ai_settings']
-            )
-            # Получаем ход AI
-            timeout_event = Event()
-            result = {'move': None}
-            num_cards = len(selected_cards)
-
-            ai_thread = Thread(
-                target=cfr_agent.get_move,
-                args=(game_state, num_cards, timeout_event, result)
-            )
-            ai_thread.start()
-
-            # Ждем завершения работы AI
-            ai_time = int(game_state_data['ai_settings'].get('aiTime', 5))
-            ai_thread.join(timeout=ai_time)
-
-            if ai_thread.is_alive():
-                timeout_event.set()
-                ai_thread.join()
-                logger.warning("AI move timed out")
-                return jsonify({'error': 'AI move timed out'})
-
-            if result.get('move') is None:
-                logger.error("AI failed to produce a move")
-                return jsonify({'error': 'AI failed to produce a move'}), 500
-
-            move = result['move']
-
-            # Сериализуем ход AI
-            def serialize_card(card):
-                return card.to_dict() if card is not None else None
-
-            def serialize_move(move):
-                serialized = {}
-                for key, value in move.items():
-                    if value is not None:
-                        if isinstance(value, list):
-                            serialized[key] = [serialize_card(card) for card in value]
-                        else:
-                            serialized[key] = serialize_card(value)
-                    else:
-                        serialized[key] = None
-                return serialized
-
-            serialized_move = serialize_move(move)
-            logger.info("AI move generated successfully")
-            return jsonify(serialized_move)
-
-        except Exception as e:
-            logger.error(f"Error processing AI move: {e}")
-            return jsonify({'error': str(e)}), 500
-
-    except Exception as e:
-        logger.error(f"Unexpected error in ai_move: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/get_statistics')
+@app.route('/api/statistics', methods=['GET'])
 def get_statistics():
-    """Возвращает статистику игры."""
+    """Получает статистику игры."""
     try:
         session_id = session.get('session_id')
         if not session_id:
-            return jsonify({'error': 'No active session'}), 400
-        
+            return jsonify({'error': 'Invalid session'}), 400
+
         statistics = game_manager.get_game_statistics(session_id)
         return jsonify(statistics)
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/end_game', methods=['POST'])
-def end_game():
-    """Завершает текущую игру."""
-    try:
-        session_id = session.get('session_id')
-        if not session_id:
-            return jsonify({'error': 'No active session'}), 400
-        
-        game_manager.end_game(session_id)
-        session.clear()
-        return jsonify({'status': 'success'})
-    except Exception as e:
-        logger.error(f"Error ending game: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-# Запуск приложения
 if __name__ == '__main__':
-    # Создаем необходимые директории
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    if not os.path.exists('flask_session'):
-        os.makedirs('flask_session')
-
-    # Инициализируем AI агента с настройками по умолчанию
-    initialize_ai_agent({
-        'iterations': 1000,
-        'stopThreshold': 0.001,
-        'aiTime': 5,
-        'aiType': 'mccfr'
-    })
-    
-    # Получаем порт из переменных окружения или используем порт по умолчанию
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(host='0.0.0.0', port=port, debug=debug)        
