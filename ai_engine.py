@@ -134,6 +134,7 @@ class Board:
             for card_data in data.get(line, []):
                 board.place_card(line, Card.from_dict(card_data))
         return board
+
 class GameState:
     def __init__(self, selected_cards: Optional[List[Card]] = None,
                  board: Optional[Board] = None,
@@ -150,10 +151,10 @@ class GameState:
         """Инициализирует колоду с учетом уже использованных карт."""
         all_cards = set(Card.get_all_cards())
         used_cards = set(self.selected_cards.cards + 
-                        self.board.top + 
-                        self.board.middle + 
-                        self.board.bottom + 
-                        self.discarded_cards)
+                         self.board.top + 
+                         self.board.middle + 
+                         self.board.bottom + 
+                         self.discarded_cards)
         return all_cards - used_cards
 
     def get_current_player(self) -> int:
@@ -240,7 +241,7 @@ class GameState:
             board_info.append(f"{line}:{','.join(map(str, sorted_cards))}")
         
         discarded = ','.join(map(str, sorted(self.discarded_cards, 
-                                           key=lambda c: (c.rank_value, Card.SUITS.index(c.suit)))))
+                                               key=lambda c: (c.rank_value, Card.SUITS.index(c.suit)))))
         
         return f"{';'.join(board_info)}|D:{discarded}"
 
@@ -270,7 +271,8 @@ class GameState:
         current_score = self.calculate_score()
         test_score = test_state.calculate_score()
         return test_score > current_score
-def calculate_score(self) -> float:
+
+    def calculate_score(self) -> float:
         """Рассчитывает общий счет для текущего состояния."""
         if self.is_dead_hand():
             return -1000.0
@@ -425,7 +427,8 @@ def calculate_score(self) -> float:
                 score += 2 if line == 'bottom' else 4
 
         return score
-def _get_set_bonus(self, rank: str) -> float:
+
+    def _get_set_bonus(self, rank: str) -> float:
         """Возвращает бонус за сет в верхней линии."""
         bonus_values = {
             '2': 10, '3': 11, '4': 12, '5': 13, '6': 14,
@@ -575,6 +578,7 @@ class CFRNode:
             else:
                 action[key] = value
         return action
+
 class CFRAgent:
     def __init__(self, iterations: int = 1000, stop_threshold: float = 0.001):
         self.nodes = {}
