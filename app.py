@@ -45,11 +45,12 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
 
 # Глобальный экземпляр AI агента
 cfr_agent = None
+
 class GameManager:
     def __init__(self):
         self.active_games: Dict[str, Dict[str, Any]] = {}
         self.game_statistics: Dict[str, list] = {}
-        
+
     def create_game(self, session_id: str) -> None:
         """Создает новую игру для сессии."""
         try:
@@ -117,6 +118,7 @@ class GameManager:
             stats['royalties'] += royalties
         except Exception as e:
             logger.error(f"Error updating statistics: {e}")
+
     def _check_fantasy(self, state: Dict[str, Any]) -> bool:
         """Проверяет возможность фантазии."""
         try:
@@ -157,7 +159,7 @@ class GameManager:
         """Конвертирует состояние в объект GameState."""
         try:
             selected_cards = [ai_engine.Card(c['rank'], c['suit']) 
-                            for c in state['selected_cards']]
+                              for c in state['selected_cards']]
             
             board = ai_engine.Board()
             for line in ['top', 'middle', 'bottom']:
@@ -165,7 +167,7 @@ class GameManager:
                     board.place_card(line, ai_engine.Card(card['rank'], card['suit']))
             
             discarded_cards = [ai_engine.Card(c['rank'], c['suit']) 
-                             for c in state['discarded_cards']]
+                               for c in state['discarded_cards']]
             
             return ai_engine.GameState(
                 selected_cards=selected_cards,
@@ -215,12 +217,13 @@ def initialize_ai_agent(ai_settings: Dict[str, Any]) -> None:
                 logger.error(f"Error loading AI progress: {e}")
         else:
             logger.warning("AI_PROGRESS_TOKEN not set. Progress loading disabled.")
-            
+
     except Exception as e:
         logger.error(f"Error initializing AI agent: {e}")
         logger.info("Falling back to default AI agent settings")
         cfr_agent = ai_engine.CFRAgent()
-        def validate_game_state(state: Dict[str, Any]) -> bool:
+
+def validate_game_state(state: Dict[str, Any]) -> bool:
     """Проверяет корректность состояния игры."""
     try:
         # Проверка структуры состояния
@@ -268,7 +271,8 @@ def initialize_ai_agent(ai_settings: Dict[str, Any]) -> None:
 def handle_error(e):
     logger.error(f"Unhandled error: {str(e)}")
     return jsonify({"error": "Internal server error"}), 500
-    # Настройка сессии
+
+# Настройка сессии
 @app.before_request
 def before_request():
     """Настройка сессии перед каждым запросом"""
@@ -310,7 +314,8 @@ def training():
     except Exception as e:
         logger.error(f"Error in training route: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-        @app.route('/update_state', methods=['POST'])
+
+@app.route('/update_state', methods=['POST'])
 def update_state():
     """Обновляет состояние игры."""
     try:
@@ -354,10 +359,11 @@ def ai_move():
         if not validate_game_state(game_state_data):
             logger.warning("Invalid game state received for AI move")
             return jsonify({'error': 'Invalid game state format'}), 400
-            # Конвертируем данные в объекты Card
+
+        # Конвертируем данные в объекты Card
         try:
             selected_cards = [ai_engine.Card(card['rank'], card['suit']) 
-                            for card in game_state_data['selected_cards']]
+                              for card in game_state_data['selected_cards']]
             
             board = ai_engine.Board()
             for line in ['top', 'middle', 'bottom']:
@@ -365,7 +371,7 @@ def ai_move():
                     board.place_card(line, ai_engine.Card(card_data['rank'], card_data['suit']))
             
             discarded_cards = [ai_engine.Card(card['rank'], card['suit']) 
-                             for card in game_state_data.get('discarded_cards', [])]
+                               for card in game_state_data.get('discarded_cards', [])]
             
             # Создаем состояние игры
             game_state = ai_engine.GameState(
@@ -401,6 +407,7 @@ def ai_move():
                 return jsonify({'error': 'AI failed to produce a move'}), 500
 
             move = result['move']
+
             # Сериализуем ход AI
             def serialize_card(card):
                 return card.to_dict() if card is not None else None
@@ -442,7 +449,8 @@ def get_statistics():
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-        @app.route('/end_game', methods=['POST'])
+
+@app.route('/end_game', methods=['POST'])
 def end_game():
     """Завершает текущую игру."""
     try:
