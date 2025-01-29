@@ -117,7 +117,7 @@ class GameManager:
             stats['royalties'] += royalties
         except Exception as e:
             logger.error(f"Error updating statistics: {e}")
-            def _check_fantasy(self, state: Dict[str, Any]) -> bool:
+    def _check_fantasy(self, state: Dict[str, Any]) -> bool:
         """Проверяет возможность фантазии."""
         try:
             top_cards = state['board']['top']
