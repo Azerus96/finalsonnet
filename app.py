@@ -298,19 +298,27 @@ def training():
     """Страница тренировки."""
     try:
         session_id = session.get('session_id')
+        
         if not session_id:
             session['session_id'] = os.urandom(16).hex()
             game_manager.create_game(session['session_id'])
         
-        if 'game_state' not in session:
-            session['game_state'] = game_manager.active_games[session['session_id']]['state']
+        # Проверяем, существует ли игра для данной сессии
+        if session_id not in game_manager.active_games:
+            logger.error(f"Game not found for session: {session_id}")
+            return jsonify({'error': 'Game not found for this session'}), 404
+        
+        # Получаем состояние игры
+        session_game_state = game_manager.active_games[session_id]['state']
+        session['game_state'] = session_game_state  # Двигайтесь по актуальному состоянию
 
         # Инициализация AI агента при необходимости
-        if cfr_agent is None or session['game_state']['ai_settings'] != session.get('previous_ai_settings'):
-            initialize_ai_agent(session['game_state']['ai_settings'])
-            session['previous_ai_settings'] = session['game_state']['ai_settings'].copy()
+        if cfr_agent is None or session_game_state['ai_settings'] != session.get('previous_ai_settings'):
+            initialize_ai_agent(session_game_state['ai_settings'])
+            session['previous_ai_settings'] = session_game_state['ai_settings'].copy()
 
-        return render_template('training.html', game_state=session['game_state'])
+        return render_template('training.html', game_state=session_game_state)
+    
     except Exception as e:
         logger.error(f"Error in training route: {e}")
         return jsonify({'error': 'Internal server error'}), 500
